@@ -79,10 +79,10 @@ This produces:
 
 ### A.1 Export ONNX with the plugin node
 
-`scripts/make_single_onnx_cpp.py` exports one ONNX graph in which the GWC cost volume is represented by an `FFSGWCVolume` custom plugin node (resolved at engine-build time by `libffs_gwc_plugin.so`):
+`scripts/make_plugin_onnx.py` exports one ONNX graph in which the GWC cost volume is represented by an `FFSGWCVolume` custom plugin node (resolved at engine-build time by `libffs_gwc_plugin.so`):
 
 ```bash
-python3 scripts/make_single_onnx_cpp.py \
+python3 scripts/make_plugin_onnx.py \
   --model_dir weights/23-36-37/model_best_bp2_serialize.pth \
   --save_path output_plugin_onnx \
   --height 480 \
@@ -127,10 +127,42 @@ cpp/build/ffs_depth_main \
   demo_data/left.png \
   demo_data/right.png \
   demo_data/K.txt \
-    output_plugin_onnx \
+  output_plugin_onnx
 ```
 
 The last argument is the output directory (default `ffs_output`). `ffs_depth_main` sees `fast_foundationstereo.engine` inside `output_plugin_onnx/` and uses `FFSSingleEngineInference`, which deserializes the engine and registers the `FFSGWCVolume` plugin before inference.
+
+### A.4 Python alternative (build engine and run inference without the C++ apps)
+
+The same plugin ONNX can be turned into an engine and executed end-to-end from Python. Only the C++ plugin shared library (`libffs_gwc_plugin.so`) is required from the C++ build; the C++ apps (`ffs_build_single_engine`, `ffs_depth_main`) are not.
+
+```bash
+# 1. Export plugin ONNX
+python3 scripts/make_plugin_onnx.py \
+  --model_dir weights/23-36-37/model_best_bp2_serialize.pth \
+  --save_path output_plugin_onnx \
+  --height 480 \
+  --width 640
+
+# 2. Build the C++ plugin shared library
+cmake -S cpp -B cpp/build
+cmake --build cpp/build -j
+
+# 3. Build the TensorRT engine from Python
+python3 scripts/build_plugin_trt.py \
+  output_plugin_onnx/fast_foundationstereo_plugin.onnx \
+  output_plugin_onnx/fast_foundationstereo.engine
+
+# 4. Run inference from Python
+python3 scripts/run_demo_plugin_trt.py \
+  --model_dir output_plugin_onnx \
+  --left_file demo_data/left.png \
+  --right_file demo_data/right.png \
+  --intrinsic_file demo_data/K.txt \
+  --out_dir output_plugin_onnx
+```
+
+Both `build_plugin_trt.py` and `run_demo_plugin_trt.py` auto-discover `libffs_gwc_plugin.so` in `cpp/build/`. Pass `--plugin_lib /path/to/libffs_gwc_plugin.so` to override the location. `build_plugin_trt.py` accepts `--fp32` and `--workspace-mb N` with the same meaning as `ffs_build_single_engine`. `run_demo_plugin_trt.py` writes the same five output files as the C++ demo (see [Outputs](#outputs)).
 
 ## Route B: Two TensorRT Engines (feature_runner + post_runner)
 
