@@ -19,13 +19,33 @@ ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=US/Pacific
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Build tools, TensorRT 10 dev packages (same set as docker/dockerfile_cpp), OpenCV.
+# Build tools + OpenCV. TRT itself is installed below from the local 10.11 deb so
+# the engine-build TRT version matches docker/dockerfile_cpp exactly. Without a
+# pin, apt resolves libnvinfer-dev to TRT 11 which removed
+# `IPluginRegistry::getPluginCreator()` used by cpp/src/gwc_volume_plugin.cpp.
 RUN apt-get update --fix-missing && \
     apt-get install -y apt-utils build-essential ca-certificates cmake curl git gnupg2 \
       locales lsb-release pkg-config software-properties-common wget \
-      libnvinfer10 libnvinfer-dev libnvinfer-plugin10 libnvinfer-plugin-dev \
-      libnvonnxparsers10 libnvonnxparsers-dev libnvinfer-dispatch10 libnvinfer-bin \
       libopencv-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# TensorRT 10.11 (same deb as docker/dockerfile_cpp). Engines built here will run
+# in this image at deploy time, so versions must match. The CUDA base image's
+# public NVIDIA repo serves TRT 11 alongside 10.x and apt would otherwise pull
+# the higher version + headers. We temporarily move the public NVIDIA repo lists
+# aside so apt only sees the local 10.11 repo for this install.
+RUN cd / && wget --quiet https://developer.download.nvidia.com/compute/tensorrt/10.11.0/local_installers/nv-tensorrt-local-repo-ubuntu2204-10.11.0-cuda-12.9_1.0-1_amd64.deb && \
+    apt-get install -y ./nv-tensorrt-local-repo-ubuntu2204-10.11.0-cuda-12.9_1.0-1_amd64.deb && \
+    cp /var/nv-tensorrt-local-repo-ubuntu2204-10.11.0-cuda-12.9/nv-tensorrt-local-*-keyring.gpg /usr/share/keyrings/ && \
+    mkdir -p /tmp/apt-disabled && \
+    mv /etc/apt/sources.list.d/cuda-ubuntu2204-x86_64.list /tmp/apt-disabled/ 2>/dev/null || true && \
+    mv /etc/apt/sources.list.d/nvidia-ml.list /tmp/apt-disabled/ 2>/dev/null || true && \
+    apt-get update && \
+    apt-get install -y libnvinfer10 libnvinfer-dev libnvinfer-plugin10 libnvinfer-plugin-dev \
+      libnvonnxparsers10 libnvonnxparsers-dev libnvinfer-dispatch10 libnvinfer-bin && \
+    mv /tmp/apt-disabled/* /etc/apt/sources.list.d/ 2>/dev/null || true && \
+    rmdir /tmp/apt-disabled && \
+    rm -f /nv-tensorrt-local-repo-ubuntu2204-10.11.0-cuda-12.9_1.0-1_amd64.deb && \
     rm -rf /var/lib/apt/lists/*
 
 RUN locale-gen en_US en_US.UTF-8 && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
@@ -40,6 +60,7 @@ RUN add-apt-repository universe && \
     apt-get update && \
     apt-get install -y ros-humble-ros-base ros-humble-cv-bridge ros-humble-message-filters \
       ros-humble-image-transport ros-humble-depth-image-proc \
+      ros-humble-rosbag2-storage-mcap \
       python3-colcon-common-extensions && \
     rm -rf /var/lib/apt/lists/*
 

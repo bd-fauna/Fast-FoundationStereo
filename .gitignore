@@ -10,8 +10,11 @@ cfg.yaml
 weights/*
 !weights/.gitkeep
 output/
+output_*/
 .claude/
 cpp/build/
 .venv/
 .mise.local.toml
 output_demo/
+*.engine
+*.onnx
