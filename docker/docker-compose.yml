@@ -1,0 +1,132 @@
+# Compose file for the Fast-FoundationStereo Docker images.
+#
+# Usage from the repo root:
+#   docker compose -f docker/docker-compose.yml build ffs_ros2
+#   docker compose -f docker/docker-compose.yml run --rm ffs_ros2_shell
+#   docker compose -f docker/docker-compose.yml run --rm ffs_stereo
+#
+# Or via the top-level Justfile:
+#   just shell           # drop into the ffs_ros2 image
+#   just node            # run ffs_stereo_node against ZED-wrapper topics
+#   just build-ros2      # rebuild the ffs_ros2 image
+#
+# Override the engine dir with ENGINE_DIR=/path/to/dir before invoking,
+# e.g. `ENGINE_DIR=$(pwd)/output_plugin_onnx_320x736_iters4 just node`.
+
+name: fast-foundationstereo
+
+x-ffs-ros2: &ffs-ros2-base
+  image: ffs_ros2
+  build:
+    context: ..
+    dockerfile: docker/dockerfile_ros2
+    network: host
+  network_mode: host
+  ipc: host
+  environment:
+    NVIDIA_DISABLE_REQUIRE: "1"
+    ROS_DOMAIN_ID: "${ROS_DOMAIN_ID:-0}"
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+  volumes:
+    - ${ENGINE_DIR:-../output_plugin_onnx}:/engines
+    - /mnt/nas_mnt:/mnt/nas_mnt:ro
+
+services:
+  # Build/pull only — no command. Use `docker compose build ffs_ros2`.
+  ffs_ros2:
+    <<: *ffs-ros2-base
+    profiles: ["build"]
+    command: ["true"]
+
+  # Interactive shell for debugging (rosbag inspection, ros2 cli, apt, etc.).
+  ffs_ros2_shell:
+    <<: *ffs-ros2-base
+    stdin_open: true
+    tty: true
+    entrypoint: /opt/ffs/docker/ros2_entrypoint.sh
+    command: ["bash"]
+
+  # Run the stereo depth node with the standard ZED-wrapper topic layout
+  # (camera_name=zed -> /zed/zed_node/{left,right}/...). For other layouts
+  # add `--ros-args -p left_image_topic:=...` etc. via:
+  #   docker compose run --rm ffs_stereo \
+  #     ros2 run ffs_ros ffs_stereo_node --ros-args \
+  #       -p engine_dir:=/engines -p left_image_topic:=...
+  ffs_stereo:
+    <<: *ffs-ros2-base
+    command:
+      - ros2
+      - launch
+      - ffs_ros
+      - ffs_stereo.launch.py
+      - engine_dir:=/engines
+      - camera_name:=${CAMERA_NAME:-zed}
+
+  # Same as ffs_stereo but uses topic param overrides instead of camera_name.
+  # Set the topic env vars (default to the bare /zed/{side}/... layout used
+  # by the lex-zed-data MCAPs).
+  ffs_stereo_topics:
+    <<: *ffs-ros2-base
+    command:
+      - ros2
+      - run
+      - ffs_ros
+      - ffs_stereo_node
+      - --ros-args
+      - -p
+      - engine_dir:=/engines
+      - -p
+      - left_image_topic:=${LEFT_IMAGE_TOPIC:-/zed/left/image_rect_color}
+      - -p
+      - right_image_topic:=${RIGHT_IMAGE_TOPIC:-/zed/right/image_rect_color}
+      - -p
+      - left_camera_info_topic:=${LEFT_INFO_TOPIC:-/zed/left/camera_info}
+      - -p
+      - right_camera_info_topic:=${RIGHT_INFO_TOPIC:-/zed/right/camera_info}
+
+  # Build a TRT engine from a plugin ONNX. Mount the dir holding the .onnx
+  # and pass the file paths under /engines.
+  #   ENGINE_DIR=$(pwd)/output_plugin_onnx_320x736_iters4 \
+  #     docker compose run --rm ffs_build_engine \
+  #     /engines/fast_foundationstereo_plugin.onnx \
+  #     /engines/fast_foundationstereo.engine
+  ffs_build_engine:
+    <<: *ffs-ros2-base
+    entrypoint:
+      - /opt/ffs/docker/ros2_entrypoint.sh
+      - ros2
+      - run
+      - ffs_ros
+      - ffs_build_single_engine
+
+  # ----- ffs (Python/PyTorch) image: ONNX export, demos, conversions -----
+  ffs:
+    image: ffs
+    build:
+      context: ..
+      dockerfile: docker/dockerfile_cpp
+      network: host
+    network_mode: host
+    ipc: host
+    stdin_open: true
+    tty: true
+    environment:
+      NVIDIA_DISABLE_REQUIRE: "1"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ..:/workspace
+      - /mnt/nas_mnt:/mnt/nas_mnt:ro
+    working_dir: /workspace
+    command: ["bash"]
