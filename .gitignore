@@ -14,3 +14,4 @@ output/
 cpp/build/
 .venv/
 .mise.local.toml
+output_demo/
