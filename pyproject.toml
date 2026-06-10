@@ -19,6 +19,7 @@ dependencies = [
   "pyyaml",
   "open3d",
   "onnxruntime-gpu>=1.26.0",
+  "tensorrt-cu12<11",
 ]
 
 [project.optional-dependencies]

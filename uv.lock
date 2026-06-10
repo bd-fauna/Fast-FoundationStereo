@@ -262,6 +262,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "scikit-image" },
     { name = "scipy" },
+    { name = "tensorrt-cu12" },
     { name = "timm" },
     { name = "torch" },
     { name = "torchvision" },
@@ -297,6 +298,7 @@ requires-dist = [
     { name = "pyyaml" },
     { name = "scikit-image" },
     { name = "scipy" },
+    { name = "tensorrt-cu12", specifier = "<11" },
     { name = "tensorrt-cu12", marker = "extra == 'trt'" },
     { name = "tensorrt-dispatch-cu12", marker = "extra == 'trt'" },
     { name = "tensorrt-lean-cu12", marker = "extra == 'trt'" },
@@ -1506,28 +1508,28 @@ wheels = [
 
 [[package]]
 name = "tensorrt-cu12"
-version = "11.0.0.114"
+version = "10.16.1.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "tensorrt-cu12-bindings" },
     { name = "tensorrt-cu12-libs" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1d/fd/4a3664b837be10303459aa4dbf9a02dd8951e07a9afa075f24654b92471d/tensorrt_cu12-11.0.0.114.tar.gz", hash = "sha256:05a2256ffa1d17eb200925efe1fe081fa32e629696fb2c7ae90fcaf1d0bd2f01", size = 17986, upload-time = "2026-05-27T18:10:14.973Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d5/a1/4841ac6b5e6d1d4a7f289013d359ed8479ec186a946e84446822cd4f5cc5/tensorrt_cu12-10.16.1.11.tar.gz", hash = "sha256:a044fe4a2e2e51fc205d806534102529c6f744402350b7730d221c99ffa6d269", size = 17921, upload-time = "2026-04-07T19:42:03.606Z" }
 
 [[package]]
 name = "tensorrt-cu12-bindings"
-version = "11.0.0.114"
+version = "10.16.1.11"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d4/58/cbc6f9347e302e72714f32ac5ec0991f3fcaeb49e07ec5dfe8a7f218d4a8/tensorrt_cu12_bindings-11.0.0.114-cp312-none-manylinux_2_28_x86_64.whl", hash = "sha256:6fa5d289142b4e9b304e212a7bdb24075834667df5de7ea1db6bb71b6a9cc252", size = 1237406, upload-time = "2026-05-27T18:14:26.896Z" },
-    { url = "https://files.pythonhosted.org/packages/55/dc/de090b399011d8d0a3a1190696d7fb312227c5ca6f5fe542fdfef5b565b4/tensorrt_cu12_bindings-11.0.0.114-cp312-none-win_amd64.whl", hash = "sha256:ef1d222a83a671503149487945e522c1f12a67773b2b893806c36af96a59d9a0", size = 884560, upload-time = "2026-05-27T18:11:48.663Z" },
+    { url = "https://files.pythonhosted.org/packages/81/93/8364c6e89d9a0ad596ddbefe1545e334c55bf1e85491d8cd3af6f5853572/tensorrt_cu12_bindings-10.16.1.11-cp312-none-manylinux_2_28_x86_64.whl", hash = "sha256:8e339335e7255b3fb3954eca61b4acbbdfcf7b28505bd711914519647ba310c8", size = 1341247, upload-time = "2026-04-07T19:49:05.057Z" },
+    { url = "https://files.pythonhosted.org/packages/82/50/2153496271c772e9fb6e46de7f00c7d5bd08fea33bdf7a38d60521f5a396/tensorrt_cu12_bindings-10.16.1.11-cp312-none-win_amd64.whl", hash = "sha256:e4d7105b9700987b4fd9362adacc0dfa7bee3025c8ad147a86a4316b6362a85b", size = 964884, upload-time = "2026-04-07T19:47:17.234Z" },
 ]
 
 [[package]]
 name = "tensorrt-cu12-libs"
-version = "11.0.0.114"
+version = "10.16.1.11"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f9/37/3db83f53d38263cbe0be586110229bf3638813145f2997bfdd5cd19f9bcf/tensorrt_cu12_libs-11.0.0.114.tar.gz", hash = "sha256:07a9b227b206bd7c149847174c77837fc6a6c889f792c8dc20b8ff09e0eca8ae", size = 15754, upload-time = "2026-05-27T18:11:47.307Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/56/9b/8d5b85c7cb7feaead7d462e81a4592a9d4ad3f581798f65ed34b765441f3/tensorrt_cu12_libs-10.16.1.11.tar.gz", hash = "sha256:53b45a3e82bead09638e7a3ddf4b927254b81fa0d924fe3fe594420a09ebf48b", size = 15757, upload-time = "2026-04-07T19:42:58.348Z" }
 
 [[package]]
 name = "tensorrt-dispatch-cu12"
