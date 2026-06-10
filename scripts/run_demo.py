@@ -11,7 +11,7 @@ code_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(f'{code_dir}/../')
 from omegaconf import OmegaConf
 from core.utils.utils import InputPadder
-import argparse, torch, imageio, logging, yaml
+import argparse, torch, imageio, logging, yaml, time
 import numpy as np
 from Utils import (
     AMP_DTYPE, set_logging_format, set_seed, vis_disparity,
@@ -27,7 +27,7 @@ if __name__=="__main__":
   parser.add_argument('--left_file', default=f'{code_dir}/../demo_data/left.png', type=str)
   parser.add_argument('--right_file', default=f'{code_dir}/../demo_data/right.png', type=str)
   parser.add_argument('--intrinsic_file', default=f'{code_dir}/../demo_data/K.txt', type=str, help='camera intrinsic matrix and baseline file')
-  parser.add_argument('--out_dir', default='/home/bowen/debug/stereo_output', type=str)
+  parser.add_argument('--out_dir', default=f'{code_dir}/../output/stereo_output', type=str)
   parser.add_argument('--remove_invisible', default=1, type=int)
   parser.add_argument('--denoise_cloud', default=0, type=int)
   parser.add_argument('--denoise_nb_points', type=int, default=30, help='number of points to consider for radius outlier removal')
@@ -38,6 +38,8 @@ if __name__=="__main__":
   parser.add_argument('--valid_iters', type=int, default=8, help='number of flow-field updates during forward pass')
   parser.add_argument('--max_disp', type=int, default=192, help='maximum disparity')
   parser.add_argument('--zfar', type=float, default=100, help="max depth to include in point cloud")
+  parser.add_argument('--bench', type=int, default=0, help='if >0, run N timed forwards (after --warmup) and print mean/p50/p90/min/max/std, then exit before visualization')
+  parser.add_argument('--warmup', type=int, default=5, help='number of warmup forwards before --bench timing (only used when --bench > 0)')
   args = parser.parse_args()
 
   set_logging_format()
@@ -84,13 +86,52 @@ if __name__=="__main__":
   padder = InputPadder(img0.shape, divis_by=32, force_square=False)
   img0, img1 = padder.pad(img0, img1)
 
+  def _run_forward():
+    with torch.amp.autocast('cuda', enabled=True, dtype=AMP_DTYPE):
+      if not args.hiera:
+        return model.forward(img0, img1, iters=args.valid_iters, test_mode=True, optimize_build_volume='pytorch1')
+      return model.run_hierachical(img0, img1, iters=args.valid_iters, test_mode=True, small_ratio=0.5)
+
+  if args.bench > 0:
+    logging.info(f"Benchmark mode: warmup={args.warmup} runs={args.bench}")
+    for i in range(args.warmup):
+      _ = _run_forward()
+    torch.cuda.synchronize()
+    gpu_times, host_times = [], []
+    for i in range(args.bench):
+      start_evt = torch.cuda.Event(enable_timing=True)
+      end_evt = torch.cuda.Event(enable_timing=True)
+      torch.cuda.synchronize()
+      host_t0 = time.perf_counter()
+      start_evt.record()
+      disp = _run_forward()
+      end_evt.record()
+      torch.cuda.synchronize()
+      gpu_times.append(start_evt.elapsed_time(end_evt))
+      host_times.append((time.perf_counter() - host_t0) * 1e3)
+    g = np.array(gpu_times); h = np.array(host_times)
+    def _stats(name, a):
+      logging.info(
+        f"{name} mean_ms={a.mean():.2f} p50_ms={np.percentile(a,50):.2f} "
+        f"p90_ms={np.percentile(a,90):.2f} min_ms={a.min():.2f} "
+        f"max_ms={a.max():.2f} std_ms={a.std():.2f}"
+      )
+    _stats('gpu ', g)
+    _stats('host', h)
+    sys.exit(0)
+
   logging.info(f"Start forward, 1st time run can be slow due to compilation")
-  with torch.amp.autocast('cuda', enabled=True, dtype=AMP_DTYPE):
-    if not args.hiera:
-      disp = model.forward(img0, img1, iters=args.valid_iters, test_mode=True, optimize_build_volume='pytorch1')
-    else:
-      disp = model.run_hierachical(img0, img1, iters=args.valid_iters, test_mode=True, small_ratio=0.5)
-  logging.info("forward done")
+  start_evt = torch.cuda.Event(enable_timing=True)
+  end_evt = torch.cuda.Event(enable_timing=True)
+  torch.cuda.synchronize()
+  host_t0 = time.perf_counter()
+  start_evt.record()
+  disp = _run_forward()
+  end_evt.record()
+  torch.cuda.synchronize()
+  gpu_ms = start_evt.elapsed_time(end_evt)
+  host_ms = (time.perf_counter() - host_t0) * 1e3
+  logging.info(f"forward done — gpu={gpu_ms:.2f} ms, host={host_ms:.2f} ms (includes 1st-run compilation; re-run for steady-state)")
   disp = padder.unpad(disp.float())
   disp = disp.data.cpu().numpy().reshape(H,W).clip(0, None)
 

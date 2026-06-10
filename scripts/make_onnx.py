@@ -26,7 +26,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     code_dir = os.path.dirname(os.path.abspath(__file__))
     parser.add_argument('--model_dir', type=str, default=f'{code_dir}/../weights/model_best_bp2_serialize.pth')
-    parser.add_argument('--save_path', type=str, default=f'/home/bowen/debug/', help='Path to save results.')
+    parser.add_argument('--save_path', type=str, default=f'{code_dir}/../output/', help='Path to save results.')
     parser.add_argument('--height', type=int, default=448)
     parser.add_argument('--width', type=int, default=640)
     parser.add_argument('--valid_iters', type=int, default=8, help='number of flow-field updates during forward pass')

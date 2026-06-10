@@ -40,6 +40,23 @@ pip install torch==2.6.0 torchvision==0.21.0 xformers --index-url https://downlo
 pip install -r requirements.txt
 ```
 
+- Option 3: mise + uv
+
+[mise](https://mise.jdx.dev/) provisions Python 3.12 and `uv`, and [uv](https://docs.astral.sh/uv/) installs the Python deps from `pyproject.toml` (PyTorch cu124 wheels included) into a project-local `.venv/`.
+
+```bash
+# one-time: install mise (https://mise.jdx.dev/getting-started.html)
+curl https://mise.run | sh
+
+# inside the repo
+mise trust          # approve mise.toml for this repo
+mise install        # installs python 3.12 + uv, creates .venv
+uv sync             # installs core deps into .venv
+uv sync --extra trt # optional: also install ONNX / TensorRT deps
+```
+
+Activate the venv with `source .venv/bin/activate`, or prefix commands with `uv run`, e.g. `uv run python scripts/run_demo.py ...`.
+
 
 # Weights and Trade-off
 download from [here](https://drive.google.com/drive/folders/1HuTt7UIp7gQsMiDvJwVuWmKpvFzIIMap?usp=drive_link) and put under the folder `weights/` (e.g. `./weights/23-36-37`). Below table compares the differences among some representative models of varying sizes from our trained family. They are sorted from slowest to fastest, with accuracy descending, where runtime is profiled on GPU 3090, image size 640x480.

@@ -36,7 +36,7 @@ if __name__=="__main__":
   parser.add_argument('--left_file', default=f'{code_dir}/../assets/left.png', type=str)
   parser.add_argument('--right_file', default=f'{code_dir}/../assets/right.png', type=str)
   parser.add_argument('--intrinsic_file', default=f'{code_dir}/../assets/K.txt', type=str, help='camera intrinsic matrix and baseline file')
-  parser.add_argument('--out_dir', default='/home/bowen/debug/stereo_output', type=str)
+  parser.add_argument('--out_dir', default=f'{code_dir}/../output/stereo_output', type=str)
   parser.add_argument('--remove_invisible', default=1, type=int)
   parser.add_argument('--denoise_cloud', default=1, type=int)
   parser.add_argument('--denoise_nb_points', type=int, default=30, help='number of points to consider for radius outlier removal')

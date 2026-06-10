@@ -1,0 +1,48 @@
+[project]
+name = "fast-foundationstereo"
+version = "0.1.0"
+description = "Fast-FoundationStereo: Real-Time Zero-Shot Stereo Matching"
+readme = "readme.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "torch==2.6.0",
+  "torchvision==0.21.0",
+  "xformers",
+  "timm",
+  "einops",
+  "omegaconf",
+  "scipy",
+  "numpy",
+  "scikit-image",
+  "opencv-contrib-python",
+  "imageio",
+  "pyyaml",
+  "open3d",
+]
+
+[project.optional-dependencies]
+trt = [
+  "onnx",
+  "onnxruntime-gpu",
+  "tensorrt-cu12",
+  "tensorrt-lean-cu12",
+  "tensorrt-dispatch-cu12",
+  "nvidia-modelopt",
+  "pycuda",
+  "cuda-python",
+]
+
+[tool.uv]
+# PyTorch cu124 wheels are not on PyPI — pull torch/torchvision/xformers
+# from the official cu124 index, everything else from PyPI.
+index-strategy = "unsafe-best-match"
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
+torchvision = { index = "pytorch-cu124" }
+xformers = { index = "pytorch-cu124" }

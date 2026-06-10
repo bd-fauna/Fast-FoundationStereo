@@ -12,3 +12,5 @@ weights/*
 output/
 .claude/
 cpp/build/
+.venv/
+.mise.local.toml
