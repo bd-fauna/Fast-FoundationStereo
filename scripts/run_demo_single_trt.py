@@ -45,6 +45,7 @@ import argparse
 import logging
 import os
 import sys
+import time
 
 import cv2
 import imageio
@@ -225,6 +226,13 @@ if __name__ == '__main__':
                         help='Generate and save point cloud')
     parser.add_argument('--zfar', type=float, default=100,
                         help='Max depth (m) to include in point cloud')
+    parser.add_argument('--bench', type=int, default=0,
+                        help='if >0, run N timed forwards (after --warmup) and '
+                             'print mean/p50/p90/min/max/std, then exit before '
+                             'visualization')
+    parser.add_argument('--warmup', type=int, default=5,
+                        help='number of warmup forwards before --bench timing '
+                             '(only used when --bench > 0)')
     args = parser.parse_args()
 
     set_logging_format()
@@ -284,10 +292,68 @@ if __name__ == '__main__':
     t_right = torch.as_tensor(img1_norm).cuda().float()[None].permute(0, 3, 1, 2)
 
     # ── Inference ─────────────────────────────────────────────────────────
+    is_trt = isinstance(runner, SingleEngineTrtRunner)
+
+    def _run_forward():
+        return runner({'left_image': t_left, 'right_image': t_right})
+
+    if args.bench > 0:
+        logging.info(f'Benchmark mode: warmup={args.warmup} runs={args.bench} '
+                     f'backend={"TRT" if is_trt else "ONNX Runtime"}')
+        for _ in range(args.warmup):
+            _ = _run_forward()
+        torch.cuda.synchronize()
+        gpu_times, host_times = [], []
+        for _ in range(args.bench):
+            torch.cuda.synchronize()
+            if is_trt:
+                start_evt = torch.cuda.Event(enable_timing=True)
+                end_evt = torch.cuda.Event(enable_timing=True)
+                host_t0 = time.perf_counter()
+                start_evt.record()
+                _ = _run_forward()
+                end_evt.record()
+                torch.cuda.synchronize()
+                gpu_times.append(start_evt.elapsed_time(end_evt))
+                host_times.append((time.perf_counter() - host_t0) * 1e3)
+            else:
+                host_t0 = time.perf_counter()
+                _ = _run_forward()
+                torch.cuda.synchronize()
+                host_times.append((time.perf_counter() - host_t0) * 1e3)
+
+        def _stats(name, a):
+            logging.info(
+                f'{name} mean_ms={a.mean():.2f} p50_ms={np.percentile(a,50):.2f} '
+                f'p90_ms={np.percentile(a,90):.2f} min_ms={a.min():.2f} '
+                f'max_ms={a.max():.2f} std_ms={a.std():.2f}')
+        if gpu_times:
+            _stats('gpu ', np.array(gpu_times))
+        _stats('host', np.array(host_times))
+        sys.exit(0)
+
     logging.info('Running inference (first run may be slow due to TRT warmup)')
-    outputs = runner({'left_image': t_left, 'right_image': t_right})
+    torch.cuda.synchronize()
+    host_t0 = time.perf_counter()
+    if is_trt:
+        start_evt = torch.cuda.Event(enable_timing=True)
+        end_evt = torch.cuda.Event(enable_timing=True)
+        start_evt.record()
+        outputs = _run_forward()
+        end_evt.record()
+        torch.cuda.synchronize()
+        gpu_ms = start_evt.elapsed_time(end_evt)
+        host_ms = (time.perf_counter() - host_t0) * 1e3
+        logging.info(f'forward done — gpu={gpu_ms:.2f} ms, host={host_ms:.2f} ms '
+                     f'(includes 1st-run warmup; re-run for steady-state)')
+    else:
+        outputs = _run_forward()
+        torch.cuda.synchronize()
+        host_ms = (time.perf_counter() - host_t0) * 1e3
+        logging.info(f'forward done — host={host_ms:.2f} ms '
+                     f'(ONNX Runtime; includes H2D+compute+D2H; '
+                     f'1st run may include session warmup)')
     disp = outputs['disparity']
-    logging.info('Inference done')
 
     disp = disp.float().cpu().numpy().reshape(H, W).clip(0, None) * (1.0 / fx)
 
